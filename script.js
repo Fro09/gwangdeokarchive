@@ -3,85 +3,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const loginForm = document.getElementById("loginForm");
     const logoutBtn = document.getElementById("logoutBtn");
     const welcomeMsg = document.getElementById("welcomeMsg");
-    const infoForm = document.getElementById("infoForm");
-    const homeContainer = document.querySelector(".home-container");
 
-    // Custom alert/confirm modal
-    const createModal = (message, type, onConfirm = null) => {
-        // Check if a modal already exists to prevent duplicates
-        if (document.querySelector('.custom-modal-overlay')) {
-            return;
-        }
-        const overlay = document.createElement('div');
-        overlay.className = 'custom-modal-overlay';
-
-        const modal = document.createElement('div');
-        modal.className = 'custom-modal';
-
-        const messageP = document.createElement('p');
-        messageP.textContent = message;
-
-        modal.appendChild(messageP);
-
-        if (type === 'alert') {
-            const closeBtn = document.createElement('button');
-            closeBtn.textContent = '확인';
-            closeBtn.onclick = () => overlay.remove();
-            modal.appendChild(closeBtn);
-        } else if (type === 'confirm') {
-            const confirmBtn = document.createElement('button');
-            confirmBtn.textContent = '확인';
-            confirmBtn.onclick = () => {
-                if (onConfirm) 
-                    onConfirm();
-                overlay.remove();
-            };
-            const cancelBtn = document.createElement('button');
-            cancelBtn.textContent = '취소';
-            cancelBtn.onclick = () => overlay.remove();
-            modal.appendChild(cancelBtn);
-            modal.appendChild(confirmBtn);
-        }
-
-        overlay.appendChild(modal);
-        document
-            .body
-            .appendChild(overlay);
-    };
-    // CSS for the modal
-    const modalStyle = document.createElement('style');
-    modalStyle.innerHTML = `.custom-modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        .custom-modal {
-            background-color: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-            text-align: center;
-        }
-        .custom-modal button {
-            margin: 5px;
-            padding: 8px 16px;
-            cursor: pointer;
-        }
-    `;
-    document
-        .head
-        .appendChild(modalStyle);
+    // API 호출을 위한 기본 URL (배포 환경에서는 Render URL로 변경)
+    const API_URL = 'http://localhost:3000';
 
     // 회원가입
     if (signupForm) {
-        signupForm.addEventListener("submit", (e) => {
+        signupForm.addEventListener("submit", async (e) => {
             e.preventDefault();
             const name = document
                 .getElementById("signupName")
@@ -97,33 +25,37 @@ document.addEventListener("DOMContentLoaded", () => {
                 .value;
 
             if (password !== confirm) {
-                createModal("비밀번호가 일치하지 않습니다 ❌", 'alert');
+                alert("비밀번호가 일치하지 않습니다 ❌");
                 return;
             }
 
-            // 기존 users 가져오기
-            let users = JSON.parse(localStorage.getItem("users")) || [];
+            try {
+                const response = await fetch(`${API_URL}/api/signup`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({name, classNo, password})
+                });
 
-            // 중복 체크
-            if (users.some(u => u.classNo === classNo)) {
-                createModal("이미 등록된 학년반번호입니다 ❌", 'alert');
-                return;
+                const result = await response.json();
+
+                if (response.status === 201) {
+                    alert("회원가입이 완료되었습니다 ✅");
+                    window.location.href = "index.html";
+                } else {
+                    alert(`오류: ${result.message}`);
+                }
+            } catch (error) {
+                alert("회원가입 중 오류가 발생했습니다 ❌");
+                console.error('Error:', error);
             }
-
-            // 새 유저 추가
-            users.push({name, classNo, password});
-
-            // 저장
-            localStorage.setItem("users", JSON.stringify(users));
-
-            createModal("회원가입이 완료되었습니다 ✅", 'alert');
-            window.location.href = "index.html";
         });
     }
 
     // 로그인
     if (loginForm) {
-        loginForm.addEventListener("submit", (e) => {
+        loginForm.addEventListener("submit", async (e) => {
             e.preventDefault();
             const classNo = document
                 .getElementById("loginClassNo")
@@ -132,15 +64,27 @@ document.addEventListener("DOMContentLoaded", () => {
                 .getElementById("loginPassword")
                 .value;
 
-            let users = JSON.parse(localStorage.getItem("users")) || [];
-            const user = users.find(u => u.classNo === classNo && u.password === password);
+            try {
+                const response = await fetch(`${API_URL}/api/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({classNo, password})
+                });
 
-            if (user) {
-                sessionStorage.setItem("isLoggedIn", "true");
-                sessionStorage.setItem("currentUser", user.name);
-                window.location.href = "home.html";
-            } else {
-                createModal("학년반번호 또는 비밀번호가 잘못되었습니다 ❌", 'alert');
+                const result = await response.json();
+
+                if (result.success) {
+                    sessionStorage.setItem("isLoggedIn", "true");
+                    sessionStorage.setItem("currentUser", result.name);
+                    window.location.href = "home.html";
+                } else {
+                    alert(`로그인 실패: ${result.message}`);
+                }
+            } catch (error) {
+                alert("로그인 중 오류가 발생했습니다 ❌");
+                console.error('Error:', error);
             }
         });
     }
@@ -149,33 +93,20 @@ document.addEventListener("DOMContentLoaded", () => {
     if (welcomeMsg) {
         const isLoggedIn = sessionStorage.getItem("isLoggedIn");
         const currentUser = sessionStorage.getItem("currentUser");
+
         if (!isLoggedIn) {
             window.location.href = "index.html";
-        } else {
-            welcomeMsg.textContent = `${currentUser}님, 반갑습니다!`;
-            // 홈 화면이 데스크탑 화면에 맞게 채워지도록 클래스 추가
-            if (homeContainer) {
-                homeContainer
-                    .classList
-                    .add("full-screen-content");
-            }
+            return;
         }
-    }
+        welcomeMsg.textContent = `${currentUser}님 반갑습니다`;
 
-    // 시간표 페이지 (정보 입력)
-    if (infoForm) {
-        infoForm.addEventListener("submit", (e) => {
-            e.preventDefault();
-            // 과목 페이지로 이동
-            window.location.href = "subject.html";
-        });
-    }
-
-    // 로그아웃
-    if (logoutBtn) {
-        logoutBtn.addEventListener("click", () => {
-            sessionStorage.clear();
-            window.location.href = "index.html";
-        });
+        // 로그아웃 버튼
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => {
+                sessionStorage.removeItem("isLoggedIn");
+                sessionStorage.removeItem("currentUser");
+                window.location.href = "index.html";
+            });
+        }
     }
 });
